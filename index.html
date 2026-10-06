@@ -45,6 +45,11 @@
   .seg button.active{background:var(--accent);border-color:var(--accent);color:#04202f;font-weight:600}
   .btn-row{display:flex;gap:8px;margin-top:4px}
   .btn.danger:hover{border-color:var(--bad);color:var(--bad)}
+  .fixedrow{display:flex;gap:8px;flex-wrap:wrap;margin:2px 0 6px}
+  .chip{background:var(--panel2);border:1px solid var(--line);border-radius:8px;
+    padding:6px 10px;font-size:12px;color:var(--muted)}
+  .chip b{color:var(--text);font-family:var(--mono);font-weight:600}
+  .hidden{display:none!important}
   /* ---------- banner ---------- */
   #banner{border-radius:12px;padding:16px 18px;margin-bottom:14px;border:1px solid var(--line)}
   #banner.floats{background:linear-gradient(135deg,#0b2530,#0d3140);border-color:#1b5b74}
@@ -116,7 +121,7 @@
 <main>
   <!-- ================= CONTROLS ================= -->
   <aside class="card" id="controlsCard">
-    <h2>Cylinder &amp; Mass</h2>
+    <h2>Main Cylinder</h2>
 
     <div class="ctl">
       <label>Height of cylinder <small>cm</small></label>
@@ -135,15 +140,7 @@
     </div>
 
     <div class="ctl">
-      <label>Number of cylinders</label>
-      <div class="seg" id="cylSeg">
-        <button data-n="1">1 cylinder</button>
-        <button data-n="2">2 cylinders &nbsp;＋</button>
-      </div>
-    </div>
-
-    <div class="ctl">
-      <label>Net weight, per cylinder <small>kg, syringe empty</small></label>
+      <label>Net weight, main cylinder <small>kg, syringe empty</small></label>
       <div class="pair"><input type="range" id="w_rng" min="0.5" max="15" step="0.05">
         <input type="number" id="w_num" min="0" max="50" step="0.05"></div>
     </div>
@@ -154,36 +151,48 @@
         <input type="number" id="p_num" min="0" max="50" step="0.05"></div>
     </div>
 
-    <h2>Ballast &amp; Fluid</h2>
+    <h2>Bottom Cylinder — optional add-on</h2>
 
     <div class="ctl">
-      <label>Syringe / ballast volume, per cylinder <small>ml</small></label>
+      <label>Second cylinder <small>independent part, sealed &amp; empty</small></label>
+      <div class="seg" id="cylSeg">
+        <button data-n="0">None</button>
+        <button data-n="1">Attach below float ＋</button>
+      </div>
+    </div>
+
+    <div id="secCtrls" class="hidden">
+      <div class="ctl">
+        <label>Bottom cylinder height <small>cm</small></label>
+        <div class="pair"><input type="range" id="h2_rng" min="3" max="100" step="1">
+          <input type="number" id="h2_num" min="1" max="200" step="1"></div>
+      </div>
+      <div class="ctl">
+        <label>Bottom cylinder weight <small>kg, empty</small></label>
+        <div class="pair"><input type="range" id="w2_rng" min="0.1" max="10" step="0.05">
+          <input type="number" id="w2_num" min="0" max="50" step="0.05"></div>
+      </div>
+    </div>
+
+    <h2>Ballast</h2>
+
+    <div class="ctl">
+      <label>Syringe / ballast volume <small>ml, main cylinder only</small></label>
       <div class="pair"><input type="range" id="b_rng" min="20" max="2000" step="10">
         <input type="number" id="b_num" min="1" max="10000" step="10"></div>
-    </div>
-
-    <div class="ctl">
-      <label>Water density ρ <small>kg/m³</small></label>
-      <div class="pair"><input type="range" id="rho_rng" min="900" max="1100" step="1">
-        <input type="number" id="rho_num" min="100" max="2000" step="1"></div>
-    </div>
-
-    <div class="ctl">
-      <label>Drag coefficient C<sub>x</sub></label>
-      <div class="pair"><input type="range" id="cd_rng" min="0.05" max="2" step="0.01">
-        <input type="number" id="cd_num" min="0.01" max="3" step="0.01"></div>
-    </div>
-
-    <div class="ctl">
-      <label>g <small>m/s²</small></label>
-      <div class="pair"><input type="range" id="g_rng" min="1" max="20" step="0.01">
-        <input type="number" id="g_num" min="1" max="20" step="0.01"></div>
     </div>
 
     <div class="ctl">
       <label>Target depth <small>m</small></label>
       <div class="pair"><input type="range" id="t_rng" min="0.5" max="30" step="0.5">
         <input type="number" id="t_num" min="0.1" max="200" step="0.5"></div>
+    </div>
+
+    <h2>Science Constants — fixed</h2>
+    <div class="fixedrow">
+      <span class="chip">ρ <b>998</b> kg/m³</span>
+      <span class="chip">C<sub>x</sub> <b>0.84</b></span>
+      <span class="chip">g <b>9.81</b> m/s²</span>
     </div>
 
     <div class="btn-row">
@@ -244,13 +253,17 @@
     </details>
 
     <div class="footnote">
-      Model: <code>V = πr²h</code> · displaced water (= sheet's "Required Bottle Mass") <code>m<sub>req</sub> = ρV·N</code> ·
-      extra mass <code>= m<sub>req</sub> − m<sub>net</sub>·N − payload</code> · moving mass <code>= ρV<sub>w</sub>·N − extra</code> ·
+      Model: the float is the main cylinder (h, Ø, net weight) with an <b>optional bottom cylinder</b> attached
+      underneath as an independent sealed &amp; empty section (own height h₂ and weight w₂, same diameter, no ballast inside).
+      <code>V = πr²(h + h₂)</code> · displaced water (= sheet's "Required Bottle Mass") <code>m<sub>req</sub> = ρV</code> ·
+      extra mass <code>= m<sub>req</sub> − m<sub>net</sub> − payload</code> · moving mass <code>= ρV<sub>w</sub> − extra</code> ·
+      drag uses one cross-section <code>S = πr²</code> since the stack shares the same diameter:
       trajectory integrates <code>m<sub>a</sub>·s″ = m<sub>w</sub>g − ½ρSC<sub>x</sub>·s′|s′|</code> (RK4, m<sub>a</sub> = displaced mass) —
-      the same ODE written in the spreadsheet's formula row. Note: the numbers printed in the spreadsheet's
-      s(t)/v(t) table come from a closed-form fit that is not consistent with that ODE (its own constants imply a
-      ≈3.1 m/s terminal velocity, not 1.31 m/s), so trajectories here will differ from the sheet's table.
-      Baseline values: h = 55 cm, Ø = 100 mm, net 7 kg, 550 ml, ρ = 998, C<sub>x</sub> = 0.84.
+      the same ODE written in the spreadsheet's formula row. Science constants are locked to the sheet:
+      ρ = 998 kg/m³, C<sub>x</sub> = 0.84, g = 9.81 m/s².
+      Note: the numbers printed in the spreadsheet's s(t)/v(t) table come from a closed-form fit that is not consistent
+      with that ODE (its own constants imply a ≈3.1 m/s terminal velocity, not 1.31 m/s), so trajectories here will
+      differ from the sheet's table. Baseline values: h = 55 cm, Ø = 100 mm, net 7 kg, 550 ml.
     </div>
   </section>
 </main>
@@ -258,7 +271,8 @@
 <script>
 "use strict";
 /* ============================ state ============================ */
-const DEFAULTS = { h:55, d:100, n:1, w:7, p:0, b:550, rho:998, cd:0.84, g:9.81, depth:3, intake:0 };
+const FIXED = { rho:998, cd:0.84, g:9.81 };   // science constants — locked to the spreadsheet
+const DEFAULTS = { h:55, d:100, w:7, p:0, b:550, sec:0, h2:10, w2:1, depth:3, intake:0 };
 const state = Object.assign({}, DEFAULTS);
 
 /* ============================ helpers ============================ */
@@ -269,27 +283,30 @@ const fmtI = x => (isFinite(x)?x:0).toLocaleString("en-US",{maximumFractionDigit
 
 /* ============================ physics ============================ */
 function compute(s){
-  const h = s.h/100, r = s.d/2000, N = s.n;
-  const Vcyl = Math.PI*r*r*h, V = Vcyl*N;               // m^3
-  const S = Math.PI*r*r;                                // cross-section m^2
-  const mReq = s.rho*V;                                 // displaced water mass (kg) = buoyancy ceiling
-  const netDry = s.w*N + s.p;                           // dry total mass, syringe empty (kg)
-  const capMl = s.b*N, capKg = s.rho*capMl/1e6;
-  const intakeKg = s.rho*s.intake/1e6;
+  const rho=FIXED.rho, cd=FIXED.cd, g=FIXED.g;
+  const h1 = s.h/100;
+  const h2 = (s.sec ? s.h2 : 0)/100;                 // bottom section only when attached
+  const r = s.d/2000;
+  const V1 = Math.PI*r*r*h1, V2 = Math.PI*r*r*h2, V = V1+V2;   // m^3
+  const S = Math.PI*r*r;                             // single cross-section (stacked, same Ø)
+  const mReq = rho*V;                                // displaced water mass (kg) = buoyancy ceiling
+  const netDry = s.w + (s.sec ? s.w2 : 0) + s.p;     // dry total mass, syringe empty (kg)
+  const capMl = s.b, capKg = rho*capMl/1e6;          // ballast lives in the main cylinder only
+  const intakeKg = rho*s.intake/1e6;
   const massNow = netDry + intakeKg;
-  const netNow = massNow - mReq;                        // >0 sinks, <0 floats
+  const netNow = massNow - mReq;                     // >0 sinks, <0 floats
   const toSinkKg = Math.max(0, mReq - netDry);
-  const toSinkMl = toSinkKg*1e6/s.rho;
+  const toSinkMl = toSinkKg*1e6/rho;
   const canSink = toSinkMl <= capMl + 1e-9;
-  const expelKg = Math.max(0, netDry - mReq);           // to be neutral from dry state
-  const expelMl = expelKg*1e6/s.rho;
-  const extra = mReq - netDry;                          // sheet "Extra mass need to add"
-  const holdPct = capKg > 0 ? extra/capKg*100 : NaN;    // sheet −488.9% convention
-  const mMove = capKg - extra;                          // sheet "Water Mass use for moving"
-  const k = 0.5*s.rho*S*s.cd*N;
-  return { h,r,N,Vcyl,V,S,mReq,netDry,capMl,capKg,intakeKg,massNow,netNow,
+  const expelKg = Math.max(0, netDry - mReq);        // to be neutral from dry state
+  const expelMl = expelKg*1e6/rho;
+  const extra = mReq - netDry;                       // sheet "Extra mass need to add"
+  const holdPct = capKg > 0 ? extra/capKg*100 : NaN; // sheet −488.9% convention
+  const mMove = capKg - extra;                       // sheet "Water Mass use for moving"
+  const k = 0.5*rho*S*cd;
+  return { h1,h2,r,V1,V2,V,S,mReq,netDry,capMl,capKg,intakeKg,massNow,netNow,
            toSinkKg,toSinkMl,canSink,expelKg,expelMl,extra,holdPct,mMove,k,
-           ma:mReq, F:mMove*s.g, vt:mMove>0 ? Math.sqrt(mMove*s.g/k) : 0 };
+           ma:mReq, F:mMove*g, vt:mMove>0 ? Math.sqrt(mMove*g/k) : 0, rho,g };
 }
 
 /* RK4 on  s' = v ,  v' = (F − k·v|v|)/ma  */
@@ -334,14 +351,14 @@ function drawChart(cv, pts, xMax, yKey, yLabel, color, hlines, marker){
   for(const hl of hlines) if(hl.y>yMax) yMax=hl.y;
   yMax = niceStep(yMax*1.06 || 1);
   const X = t => M.l + t/xMax*pw, Y = val => M.t + ph - val/yMax*ph;
-  ctx.font = "11px "+getComputedStyle(document.body).getPropertyValue("--mono");
+  ctx.font = "11px ui-monospace,monospace";
   ctx.strokeStyle = "#1c2733"; ctx.fillStyle = "#7d8ea0"; ctx.lineWidth = 1;
   const xs = niceStep(xMax/5), ys = niceStep(yMax/4);
   for(let t=0; t<=xMax+1e-9; t+=xs){ ctx.beginPath(); ctx.moveTo(X(t),M.t); ctx.lineTo(X(t),M.t+ph); ctx.stroke();
     ctx.textAlign="center"; ctx.fillText(fmt(t,xs<1?1:0), X(t), H-8); }
   for(let y=0; y<=yMax+1e-9; y+=ys){ ctx.beginPath(); ctx.moveTo(M.l,Y(y)); ctx.lineTo(M.l+pw,Y(y)); ctx.stroke();
     ctx.textAlign="right"; ctx.fillText(fmt(y,ys<1?1:0), M.l-6, Y(y)+4); }
-  ctx.textAlign="left"; ctx.fillText(yLabel, M.l+4, M.t+12>16?M.t+14:16);
+  ctx.textAlign="left"; ctx.fillText(yLabel, M.l+4, M.t+14);
   for(const hl of hlines){ ctx.strokeStyle=hl.color||"#ff6a5e"; ctx.setLineDash(hl.dash||[5,4]);
     ctx.beginPath(); ctx.moveTo(M.l,Y(hl.y)); ctx.lineTo(M.l+pw,Y(hl.y)); ctx.stroke(); ctx.setLineDash([]);
     if(hl.label){ ctx.fillStyle=hl.color||"#ff6a5e"; ctx.textAlign="right"; ctx.fillText(hl.label, M.l+pw-4, Y(hl.y)-4); ctx.fillStyle="#7d8ea0"; } }
@@ -369,38 +386,47 @@ function drawViz(c){
   ctx.strokeStyle="#4cc2ff"; ctx.beginPath(); ctx.moveTo(pad,wlY); ctx.lineTo(W-pad,wlY); ctx.stroke();
   ctx.fillStyle="#7d8ea0"; ctx.font="11px ui-monospace,monospace"; ctx.textAlign="left";
   ctx.fillText("waterline", pad+6, wlY-6);
-  // cylinder geometry (true aspect, fit)
-  const maxH=(H-pad-wlY)*0.86, maxW=(W-2*pad)/2.6;
-  const scale = Math.min(maxH/c.h, maxW/c.r*0.5);
-  const cw = 2*c.r*scale, ch = c.h*scale;
-  const sub = clamp(c.massNow/c.mReq, 0, 1);        // submerged fraction
+  // geometry — width uses its own fixed scale so height changes never alter width
+  const totalM = c.h1 + c.h2;
+  const maxH = (H-pad-wlY)*0.84;
+  const hscale = maxH/Math.max(totalM, 0.001);
+  const wscale = 380;                               // fixed px per metre, width only
+  const cw = clamp(2*c.r*wscale, 18, 110);
+  const ch1 = c.h1*hscale, ch2 = c.h2*hscale, chT = ch1+ch2;
+  const sub = clamp(c.massNow/c.mReq, 0, 1);        // submerged fraction of the whole stack
   const floats = c.netNow <= 0;
-  const drawOne = (cx)=>{
-    let topY;
-    if(floats) topY = wlY - (1-sub)*ch;
-    else       topY = wlY + (H-wlY-pad-ch)*0.35;
-    // body
-    const grad = ctx.createLinearGradient(cx-cw/2,0,cx+cw/2,0);
-    grad.addColorStop(0,"rgba(180,215,235,.28)"); grad.addColorStop(.5,"rgba(210,235,250,.45)");
-    grad.addColorStop(1,"rgba(180,215,235,.28)");
-    ctx.fillStyle = grad;
-    roundRect(ctx, cx-cw/2, topY, cw, ch, Math.min(10,cw/3)); ctx.fill();
-    ctx.strokeStyle="#9fc3d8"; ctx.lineWidth=1.2; ctx.stroke();
-    // internal ballast water
-    const iFrac = c.capMl>0 ? clamp(c.intakeKg/c.capKg,0,1) : 0;
-    if(iFrac>0){ const wh = iFrac*(ch-4);
-      ctx.fillStyle="rgba(59,140,240,.75)";
-      roundRect(ctx, cx-cw/2+2, topY+ch-2-wh, cw-4, wh, Math.min(8,cw/4)); ctx.fill(); }
-    // dry mass label
-    ctx.fillStyle="#dbe4ee"; ctx.textAlign="center"; ctx.font="11px ui-monospace,monospace";
-    ctx.fillText((c.netNow>=0?"−":"+")+fmt(Math.abs(c.netNow),2)+" kg", cx, topY-8);
-    if(!floats){ // sinking arrows
-      ctx.strokeStyle="#ff6a5e"; ctx.lineWidth=2;
-      for(const ax of [cx-cw/2-12, cx+cw/2+12]){
-        ctx.beginPath(); ctx.moveTo(ax,topY+ch*0.25); ctx.lineTo(ax,topY+ch*0.75);
-        ctx.lineTo(ax-4,topY+ch*0.75-7); ctx.moveTo(ax,topY+ch*0.75); ctx.lineTo(ax+4,topY+ch*0.75-7); ctx.stroke(); } }
-  };
-  if(c.N===2){ drawOne(W/2-cw-10); drawOne(W/2+cw+10); } else drawOne(W/2);
+  let topY;
+  if(floats) topY = wlY - (1-sub)*chT;
+  else       topY = wlY + Math.max(0,(H-wlY-pad-chT))*0.35;
+  const cx = W/2;
+  // main section body
+  const grad = ctx.createLinearGradient(cx-cw/2,0,cx+cw/2,0);
+  grad.addColorStop(0,"rgba(180,215,235,.28)"); grad.addColorStop(.5,"rgba(210,235,250,.45)");
+  grad.addColorStop(1,"rgba(180,215,235,.28)");
+  ctx.fillStyle = grad;
+  roundRect(ctx, cx-cw/2, topY, cw, ch1, Math.min(10,cw/3)); ctx.fill();
+  ctx.strokeStyle="#9fc3d8"; ctx.lineWidth=1.2; ctx.stroke();
+  // internal ballast water (main section only)
+  const iFrac = c.capMl>0 ? clamp(c.intakeKg/c.capKg,0,1) : 0;
+  if(iFrac>0){ const wh = iFrac*(ch1-4);
+    ctx.fillStyle="rgba(59,140,240,.75)";
+    roundRect(ctx, cx-cw/2+2, topY+ch1-2-wh, cw-4, wh, Math.min(8,cw/4)); ctx.fill(); }
+  // bottom section — independent part attached underneath
+  if(ch2>0){
+    ctx.fillStyle="rgba(160,200,225,.16)";
+    roundRect(ctx, cx-cw/2, topY+ch1, cw, ch2, Math.min(10,cw/3)); ctx.fill();
+    ctx.strokeStyle="#6f93a8"; ctx.setLineDash([4,3]); ctx.lineWidth=1.2; ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle="#8195a8"; ctx.textAlign="left"; ctx.font="10px ui-monospace,monospace";
+    ctx.fillText("bottom cyl", cx+cw/2+7, topY+ch1+ch2/2+3);
+  }
+  // net buoyancy label
+  ctx.fillStyle="#dbe4ee"; ctx.textAlign="center"; ctx.font="11px ui-monospace,monospace";
+  ctx.fillText((c.netNow>=0?"−":"+")+fmt(Math.abs(c.netNow),2)+" kg", cx, topY-8);
+  if(!floats){ // sinking arrows
+    ctx.strokeStyle="#ff6a5e"; ctx.lineWidth=2;
+    for(const ax of [cx-cw/2-12, cx+cw/2+12]){
+      ctx.beginPath(); ctx.moveTo(ax,topY+chT*0.25); ctx.lineTo(ax,topY+chT*0.75);
+      ctx.lineTo(ax-4,topY+chT*0.75-7); ctx.moveTo(ax,topY+chT*0.75); ctx.lineTo(ax+4,topY+chT*0.75-7); ctx.stroke(); } }
   // draft note
   ctx.fillStyle="#7d8ea0"; ctx.textAlign="center"; ctx.font="12px ui-monospace,monospace";
   ctx.fillText(floats ? "floating — "+fmt(sub*100,0)+"% submerged" :
@@ -428,7 +454,7 @@ function render(){
 
   /* intake card */
   const ir = $("intake_rng"); ir.max = Math.round(c.capMl); ir.value = clamp(state.intake,0,c.capMl);
-  $("capMax").textContent = `${fmtI(c.capMl)} ml capacity (${c.N}×${fmtI(state.b)})`;
+  $("capMax").textContent = `${fmtI(c.capMl)} ml capacity`;
   $("intakeVal").textContent = `${fmtI(state.intake)} ml`;
   $("intakePct").textContent = ` = ${fmt(c.intakeKg,2)} kg of water · ${intakePctOfCap}% of syringe`;
   $("capFill").style.width = (c.capMl>0?clamp(state.intake/c.capMl,0,1)*100:0)+"%";
@@ -438,7 +464,7 @@ function render(){
   else mk.style.display="none";
   $("intakeState").textContent = c.netNow>0
     ? (c.expelMl <= state.intake + 1e-9
-        ? `right now: sinks by ${fmt(c.netNow,2)} kg — expel ${fmtI(c.netNow*1e6/s.rho)} ml to start floating`
+        ? `right now: sinks by ${fmt(c.netNow,2)} kg — expel ${fmtI(c.netNow*1e6/c.rho)} ml to start floating`
         : `right now: sinks by ${fmt(c.netNow,2)} kg — emptying the whole syringe still leaves it ${fmt(c.netNow-c.intakeKg,2)} kg heavy`)
     : `right now: floats with ${fmt(-c.netNow,2)} kg of lift — pull the slider to ${fmtI(c.toSinkMl)} ml to sink`;
 
@@ -465,10 +491,13 @@ function render(){
   }
 
   /* metrics */
+  const volSmall = c.sec>0
+    ? `= ${fmt(c.V*1000,2)} L <small>(main ${fmt(c.V1*1000,2)} + bottom ${fmt(c.V2*1000,2)})</small>`
+    : `= ${fmt(c.V*1000,2)} L`;
   $("metrics").innerHTML =
-    metric("Volume (total)", `${fmt(c.V,4)} m³ <small>= ${fmt(c.V*1000,2)} L</small>`) +
+    metric("Volume (total)", `${fmt(c.V,4)} m³ <small>${volSmall}</small>`) +
     metric("Displaced water · m_req", `${fmt(c.mReq,3)} <small>kg</small>`) +
-    metric("Dry net weight", `${fmt(c.netDry,2)} <small>kg</small>`, "") +
+    metric("Net weight (dry, total)", `${fmt(c.netDry,2)} <small>kg</small>${c.sec>0?` <small>= ${fmt(state.w,2)}+${fmt(state.w2,2)}+${fmt(state.p,2)}</small>`:""}`) +
     metric("Extra mass to be neutral", `${c.extra>=0?"+":""}${fmt(c.extra,2)} <small>kg</small>`, c.extra>=0?"good":"bad") +
     metric("Hold-depth margin (sheet %)", `${fmt(c.holdPct,1)}<small>%</small>`, c.holdPct>=0?"good":"bad") +
     metric("Water mass for moving", `${fmt(c.mMove,2)} <small>kg</small>`, c.mMove>0?"":"bad") +
@@ -538,20 +567,20 @@ function render(){
 /* ============================ URL sharing ============================ */
 function shareURL(){
   const q = new URLSearchParams();
-  for(const k of ["h","d","n","w","p","b","rho","cd","g","depth","intake"]) q.set(k, state[k]);
+  for(const k of ["h","d","w","p","b","sec","h2","w2","depth","intake"]) q.set(k, state[k]);
   history.replaceState(null,"", location.pathname+"?"+q);
 }
 function loadURL(){
   const q = new URLSearchParams(location.search);
   for(const k of Object.keys(DEFAULTS)) if(q.has(k)){ const v=parseFloat(q.get(k)); if(isFinite(v)) state[k]=v; }
-  state.n = state.n===2?2:1; state.intake = clamp(state.intake,0,1e6);
+  state.sec = state.sec?1:0; state.intake = clamp(state.intake,0,1e6);
 }
 
 /* ============================ wiring ============================ */
 const CTL = [
   ["h","h_rng","h_num"],["w","w_rng","w_num"],["p","p_rng","p_num"],
-  ["b","b_rng","b_num"],["rho","rho_rng","rho_num"],["cd","cd_rng","cd_num"],
-  ["g","g_rng","g_num"],["depth","t_rng","t_num"],
+  ["b","b_rng","b_num"],["h2","h2_rng","h2_num"],["w2","w2_rng","w2_num"],
+  ["depth","t_rng","t_num"],
 ];
 for(const [key,rid,nid] of CTL){
   $(rid).addEventListener("input", e=>{ state[key]=parseFloat(e.target.value); $(nid).value=state[key]; render(); });
@@ -569,20 +598,21 @@ $("dSeg").addEventListener("click", e=>{
 $("d_num").addEventListener("input", e=>{
   const v=parseFloat(e.target.value); if(isFinite(v)&&v>0){ state.d=v; syncDia(); render(); }
 });
-/* cylinder count */
+/* bottom cylinder toggle */
+function syncSec(){
+  for(const x of $("cylSeg").querySelectorAll("button")) x.classList.toggle("active", +x.dataset.n===state.sec);
+  $("secCtrls").classList.toggle("hidden", !state.sec);
+}
 $("cylSeg").addEventListener("click", e=>{
   const b=e.target.closest("button"); if(!b) return;
-  state.n = +b.dataset.n;
-  for(const x of $("cylSeg").querySelectorAll("button")) x.classList.toggle("active", +x.dataset.n===state.n);
-  render();
+  state.sec = +b.dataset.n; syncSec(); render();
 });
 /* intake */
 $("intake_rng").addEventListener("input", e=>{ state.intake=parseFloat(e.target.value)||0; render(); });
 /* reset */
 $("resetBtn").addEventListener("click", ()=>{
   Object.assign(state, DEFAULTS);
-  syncDia();
-  for(const x of $("cylSeg").querySelectorAll("button")) x.classList.toggle("active", +x.dataset.n===state.n);
+  syncDia(); syncSec();
   for(const [key,rid,nid] of CTL){ $(rid).value=state[key]; $(nid).value=state[key]; }
   $("intake_rng").value=0;
   render();
@@ -590,8 +620,7 @@ $("resetBtn").addEventListener("click", ()=>{
 
 /* ============================ boot ============================ */
 loadURL();
-syncDia();
-for(const x of $("cylSeg").querySelectorAll("button")) x.classList.toggle("active", +x.dataset.n===state.n);
+syncDia(); syncSec();
 for(const [key,rid,nid] of CTL){ $(rid).value=state[key]; $(nid).value=state[key]; }
 $("intake_rng").value=state.intake;
 render();
