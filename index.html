@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ROV Float Ballast Tuner — ssc-rov</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='%231f6feb'/%3E%3Crect x='12' y='7' width='8' height='13' rx='3' fill='%23dbe4ee'/%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg:#0b0f14; --panel:#121821; --panel2:#0e141c; --line:#223042;
+    --text:#dbe4ee; --muted:#8195a8; --accent:#4cc2ff; --good:#3fb950;
+    --bad:#ff6a5e; --water:#1f6feb; --water2:#3b8cf0;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+    font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;}
+  .num{font-family:var(--mono)}
+  header{padding:20px 24px 12px;border-bottom:1px solid var(--line);
+    display:flex;flex-wrap:wrap;gap:10px;align-items:baseline;justify-content:space-between}
+  header h1{font-size:20px;margin:0;letter-spacing:.3px}
+  header h1 span{color:var(--accent)}
+  header .sub{color:var(--muted);font-size:13px}
+  header .sub a{color:var(--muted)}
+  main{max-width:1280px;margin:0 auto;padding:18px 24px 60px;
+    display:grid;grid-template-columns:390px 1fr;gap:18px;align-items:start}
+  @media (max-width:980px){main{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}
+  .card h2{font-size:12px;text-transform:uppercase;letter-spacing:1.2px;
+    color:var(--muted);margin:0 0 12px}
+  /* ---------- controls ---------- */
+  .ctl{margin:0 0 14px}
+  .ctl label{display:flex;justify-content:space-between;align-items:baseline;
+    font-size:13px;color:var(--text);margin-bottom:4px}
+  .ctl label small{color:var(--muted);font-weight:normal}
+  .ctl .pair{display:flex;gap:10px;align-items:center}
+  input[type=range]{flex:1;accent-color:var(--accent);height:22px;margin:0}
+  input[type=number]{width:86px;background:var(--panel2);border:1px solid var(--line);
+    color:var(--text);border-radius:7px;padding:5px 8px;font-family:var(--mono);font-size:13px}
+  input[type=number]:focus{outline:1px solid var(--accent);border-color:var(--accent)}
+  .seg{display:flex;gap:6px;flex-wrap:wrap}
+  .seg button, .btn{background:var(--panel2);border:1px solid var(--line);color:var(--text);
+    border-radius:8px;padding:7px 13px;font-size:13px;cursor:pointer;font-family:inherit}
+  .seg button:hover,.btn:hover{border-color:var(--accent)}
+  .seg button.active{background:var(--accent);border-color:var(--accent);color:#04202f;font-weight:600}
+  .btn-row{display:flex;gap:8px;margin-top:4px}
+  .btn.danger:hover{border-color:var(--bad);color:var(--bad)}
+  /* ---------- banner ---------- */
+  #banner{border-radius:12px;padding:16px 18px;margin-bottom:14px;border:1px solid var(--line)}
+  #banner.floats{background:linear-gradient(135deg,#0b2530,#0d3140);border-color:#1b5b74}
+  #banner.sinks{background:linear-gradient(135deg,#2e1414,#3a1a16);border-color:#6e2f27}
+  #banner.neutral{background:linear-gradient(135deg,#12291a,#163420);border-color:#2c6e3f}
+  #banner .big{font-size:24px;font-weight:700;letter-spacing:.4px}
+  #banner.floats .big{color:var(--accent)}
+  #banner.sinks .big{color:var(--bad)}
+  #banner.neutral .big{color:var(--good)}
+  #banner .why{color:var(--muted);font-size:13px;margin-top:3px}
+  /* ---------- layout of results ---------- */
+  .hero{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+  @media (max-width:700px){.hero{grid-template-columns:1fr}}
+  #viz{width:100%;height:265px;display:block;border-radius:8px;background:var(--panel2)}
+  /* intake */
+  #intakeCard .big{font-size:18px;font-weight:700}
+  #intakeVal{color:var(--accent)}
+  .capbar{position:relative;height:14px;background:var(--panel2);border:1px solid var(--line);
+    border-radius:7px;margin:12px 0 4px;overflow:visible}
+  .capbar .fill{position:absolute;left:0;top:0;bottom:0;border-radius:7px 0 0 7px;
+    background:linear-gradient(90deg,var(--water),var(--water2))}
+  .capbar .mark{position:absolute;top:-5px;bottom:-5px;width:3px;background:var(--bad);
+    border-radius:2px;transform:translateX(-50%)}
+  .capbar .mark::after{content:"sink point";position:absolute;top:-16px;left:50%;
+    transform:translateX(-50%);font-size:10px;color:var(--bad);white-space:nowrap}
+  .caplegend{display:flex;justify-content:space-between;font-size:11px;color:var(--muted)}
+  /* headline */
+  #sinkCard{margin-bottom:14px}
+  #sinkCard .headline{font-size:19px;font-weight:700}
+  #sinkCard .headline.ok{color:var(--accent)} #sinkCard .headline.no{color:var(--bad)}
+  #sinkCard .detail{color:var(--muted);font-size:13px;margin-top:5px}
+  /* metrics */
+  .metrics{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:10px;margin-bottom:14px}
+  .metric{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+  .metric .k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;min-height:26px}
+  .metric .v{font-family:var(--mono);font-size:17px;margin-top:2px}
+  .metric .v small{color:var(--muted);font-size:12px}
+  .metric.bad .v{color:var(--bad)} .metric.good .v{color:var(--good)}
+  /* charts */
+  .charts{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+  @media (max-width:800px){.charts{grid-template-columns:1fr}}
+  .chartcard h2 span{color:var(--accent);text-transform:none;letter-spacing:0;float:right;font-family:var(--mono)}
+  canvas.chart{width:100%;height:210px;display:block}
+  #chartMsg{color:var(--bad);font-size:14px;padding:8px 0}
+  /* comparison + table */
+  table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:13px}
+  th,td{padding:7px 9px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+  th{color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+  th:first-child,td:first-child{text-align:left}
+  tr.cur td{background:#12283a}
+  tr.cur td:first-child{color:var(--accent);font-weight:700}
+  td.bad{color:var(--bad)} td.ok{color:var(--good)}
+  .tablewrap{max-height:340px;overflow:auto;border:1px solid var(--line);border-radius:8px}
+  .tablewrap table{margin:0} .tablewrap th{position:sticky;top:0;background:var(--panel);z-index:1}
+  details{margin-bottom:14px}
+  details summary{cursor:pointer;color:var(--muted);font-size:13px;padding:6px 0;user-select:none}
+  details summary:hover{color:var(--accent)}
+  .footnote{color:var(--muted);font-size:12px;line-height:1.6;margin-top:16px}
+  .footnote code{font-family:var(--mono);color:#a8c7e8}
+</style>
+</head>
+<body>
+<header>
+  <h1>ROV Float <span>Ballast Tuner</span></h1>
+  <div class="sub">live replica of <em>2526 ROV Calculation</em> · every value recomputes as you drag ·
+    <a href="https://github.com/ssc-rov/rov-float-calculator" target="_blank">repo</a></div>
+</header>
+
+<main>
+  <!-- ================= CONTROLS ================= -->
+  <aside class="card" id="controlsCard">
+    <h2>Cylinder &amp; Mass</h2>
+
+    <div class="ctl">
+      <label>Height of cylinder <small>cm</small></label>
+      <div class="pair"><input type="range" id="h_rng" min="5" max="200" step="1">
+        <input type="number" id="h_num" min="5" max="200" step="1"></div>
+    </div>
+
+    <div class="ctl">
+      <label>Diameter <small>mm</small></label>
+      <div class="seg" id="dSeg">
+        <button data-d="80">80</button>
+        <button data-d="100">100</button>
+        <button data-d="110">110</button>
+        <input type="number" id="d_num" min="20" max="300" step="1" style="width:74px" title="custom diameter">
+      </div>
+    </div>
+
+    <div class="ctl">
+      <label>Number of cylinders</label>
+      <div class="seg" id="cylSeg">
+        <button data-n="1">1 cylinder</button>
+        <button data-n="2">2 cylinders &nbsp;＋</button>
+      </div>
+    </div>
+
+    <div class="ctl">
+      <label>Net weight, per cylinder <small>kg, syringe empty</small></label>
+      <div class="pair"><input type="range" id="w_rng" min="0.5" max="15" step="0.05">
+        <input type="number" id="w_num" min="0" max="50" step="0.05"></div>
+    </div>
+
+    <div class="ctl">
+      <label>Additional payload <small>kg, total</small></label>
+      <div class="pair"><input type="range" id="p_rng" min="0" max="20" step="0.05">
+        <input type="number" id="p_num" min="0" max="50" step="0.05"></div>
+    </div>
+
+    <h2>Ballast &amp; Fluid</h2>
+
+    <div class="ctl">
+      <label>Syringe / ballast volume, per cylinder <small>ml</small></label>
+      <div class="pair"><input type="range" id="b_rng" min="20" max="2000" step="10">
+        <input type="number" id="b_num" min="1" max="10000" step="10"></div>
+    </div>
+
+    <div class="ctl">
+      <label>Water density ρ <small>kg/m³</small></label>
+      <div class="pair"><input type="range" id="rho_rng" min="900" max="1100" step="1">
+        <input type="number" id="rho_num" min="100" max="2000" step="1"></div>
+    </div>
+
+    <div class="ctl">
+      <label>Drag coefficient C<sub>x</sub></label>
+      <div class="pair"><input type="range" id="cd_rng" min="0.05" max="2" step="0.01">
+        <input type="number" id="cd_num" min="0.01" max="3" step="0.01"></div>
+    </div>
+
+    <div class="ctl">
+      <label>g <small>m/s²</small></label>
+      <div class="pair"><input type="range" id="g_rng" min="1" max="20" step="0.01">
+        <input type="number" id="g_num" min="1" max="20" step="0.01"></div>
+    </div>
+
+    <div class="ctl">
+      <label>Target depth <small>m</small></label>
+      <div class="pair"><input type="range" id="t_rng" min="0.5" max="30" step="0.5">
+        <input type="number" id="t_num" min="0.1" max="200" step="0.5"></div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn danger" id="resetBtn">↺ Reset to sheet baseline</button>
+    </div>
+  </aside>
+
+  <!-- ================= RESULTS ================= -->
+  <section>
+    <div id="banner" class="floats">
+      <div class="big" id="bannerBig">—</div>
+      <div class="why" id="bannerWhy">—</div>
+    </div>
+
+    <div class="hero">
+      <div class="card" style="padding:10px">
+        <canvas id="viz"></canvas>
+      </div>
+      <div class="card" id="intakeCard">
+        <h2>Syringe intake — drag water in</h2>
+        <div class="big"><span id="intakeVal" class="num">0 ml</span>
+          <span style="color:var(--muted);font-size:13px" id="intakePct"></span></div>
+        <div class="capbar"><div class="fill" id="capFill"></div><div class="mark" id="capMark" style="display:none"></div></div>
+        <div class="caplegend"><span id="intakeNow">0 ml</span><span id="capMax">550 ml capacity</span></div>
+        <input type="range" id="intake_rng" min="0" max="550" step="1" value="0" style="width:100%;margin-top:10px">
+        <div class="detail" id="intakeState" style="color:var(--muted);font-size:13px;margin-top:6px"></div>
+      </div>
+    </div>
+
+    <div class="card" id="sinkCard">
+      <h2>Water needed to sink (syringe empty → threshold)</h2>
+      <div class="headline" id="sinkHeadline">—</div>
+      <div class="detail" id="sinkDetail">—</div>
+    </div>
+
+    <div class="metrics" id="metrics"></div>
+
+    <div class="charts">
+      <div class="card chartcard">
+        <h2>Depth s(t) <span id="tTargetChip"></span></h2>
+        <canvas class="chart" id="chartS"></canvas>
+        <div id="chartMsg" style="display:none"></div>
+      </div>
+      <div class="card chartcard">
+        <h2>Velocity v(t) <span id="vtChip"></span></h2>
+        <canvas class="chart" id="chartV"></canvas>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:14px">
+      <h2>Diameter comparison — current settings, syringe empty</h2>
+      <div style="overflow-x:auto"><table id="cmpTable"></table></div>
+    </div>
+
+    <details>
+      <summary>t / s / v table (0.1 s steps, like the spreadsheet)</summary>
+      <div class="tablewrap"><table id="simTable"></table></div>
+    </details>
+
+    <div class="footnote">
+      Model: <code>V = πr²h</code> · displaced water (= sheet's "Required Bottle Mass") <code>m<sub>req</sub> = ρV·N</code> ·
+      extra mass <code>= m<sub>req</sub> − m<sub>net</sub>·N − payload</code> · moving mass <code>= ρV<sub>w</sub>·N − extra</code> ·
+      trajectory integrates <code>m<sub>a</sub>·s″ = m<sub>w</sub>g − ½ρSC<sub>x</sub>·s′|s′|</code> (RK4, m<sub>a</sub> = displaced mass) —
+      the same ODE written in the spreadsheet's formula row. Note: the numbers printed in the spreadsheet's
+      s(t)/v(t) table come from a closed-form fit that is not consistent with that ODE (its own constants imply a
+      ≈3.1 m/s terminal velocity, not 1.31 m/s), so trajectories here will differ from the sheet's table.
+      Baseline values: h = 55 cm, Ø = 100 mm, net 7 kg, 550 ml, ρ = 998, C<sub>x</sub> = 0.84.
+    </div>
+  </section>
+</main>
+
+<script>
+"use strict";
+/* ============================ state ============================ */
+const DEFAULTS = { h:55, d:100, n:1, w:7, p:0, b:550, rho:998, cd:0.84, g:9.81, depth:3, intake:0 };
+const state = Object.assign({}, DEFAULTS);
+
+/* ============================ helpers ============================ */
+const $ = id => document.getElementById(id);
+const clamp = (x,a,b) => Math.min(b, Math.max(a,x));
+const fmt = (x,d=2) => (isFinite(x)?x:0).toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d});
+const fmtI = x => (isFinite(x)?x:0).toLocaleString("en-US",{maximumFractionDigits:0});
+
+/* ============================ physics ============================ */
+function compute(s){
+  const h = s.h/100, r = s.d/2000, N = s.n;
+  const Vcyl = Math.PI*r*r*h, V = Vcyl*N;               // m^3
+  const S = Math.PI*r*r;                                // cross-section m^2
+  const mReq = s.rho*V;                                 // displaced water mass (kg) = buoyancy ceiling
+  const netDry = s.w*N + s.p;                           // dry total mass, syringe empty (kg)
+  const capMl = s.b*N, capKg = s.rho*capMl/1e6;
+  const intakeKg = s.rho*s.intake/1e6;
+  const massNow = netDry + intakeKg;
+  const netNow = massNow - mReq;                        // >0 sinks, <0 floats
+  const toSinkKg = Math.max(0, mReq - netDry);
+  const toSinkMl = toSinkKg*1e6/s.rho;
+  const canSink = toSinkMl <= capMl + 1e-9;
+  const expelKg = Math.max(0, netDry - mReq);           // to be neutral from dry state
+  const expelMl = expelKg*1e6/s.rho;
+  const extra = mReq - netDry;                          // sheet "Extra mass need to add"
+  const holdPct = capKg > 0 ? extra/capKg*100 : NaN;    // sheet −488.9% convention
+  const mMove = capKg - extra;                          // sheet "Water Mass use for moving"
+  const k = 0.5*s.rho*S*s.cd*N;
+  return { h,r,N,Vcyl,V,S,mReq,netDry,capMl,capKg,intakeKg,massNow,netNow,
+           toSinkKg,toSinkMl,canSink,expelKg,expelMl,extra,holdPct,mMove,k,
+           ma:mReq, F:mMove*s.g, vt:mMove>0 ? Math.sqrt(mMove*s.g/k) : 0 };
+}
+
+/* RK4 on  s' = v ,  v' = (F − k·v|v|)/ma  */
+function simulate(c){
+  const dt = 0.01, tMax = 30;
+  let t=0, s=0, v=0;
+  const pts=[{t,s,v}]; let tTarget=null;
+  const A = (ss,vv) => (c.F - c.k*vv*Math.abs(vv))/c.ma;
+  const steps = Math.round(tMax/dt);
+  for(let i=1;i<=steps;i++){
+    const a1=A(s,v), s1=v,          a2=A(s+dt/2*s1, v+dt/2*a1), s2=v+dt/2*a1,
+          a3=A(s+dt/2*s2, v+dt/2*a2), s3=v+dt/2*a2,
+          a4=A(s+dt*s3,   v+dt*a3),   s4=v+dt*a3;
+    s += dt/6*(s1+2*s2+2*s3+s4);
+    v += dt/6*(a1+2*a2+2*a3+a4);
+    t = i*dt;
+    if(tTarget===null && s>=state.depth){
+      const pr = pts[pts.length-1];
+      tTarget = pr.t + (state.depth-pr.s)*(t-pr.t)/((s-pr.s)||1e-12);
+    }
+    pts.push({t,s,v});
+    if(t>8 && s>state.depth*3+4) break;
+  }
+  return {pts, tTarget, tEnd:t};
+}
+
+/* ============================ charts ============================ */
+function niceStep(x){ const p=Math.pow(10,Math.floor(Math.log10(x||1))); const n=x/p;
+  return (n<=1?1:n<=2?2:n<=5?5:10)*p; }
+
+function drawChart(cv, pts, xMax, yKey, yLabel, color, hlines, marker){
+  const dpr = window.devicePixelRatio||1;
+  const W = cv.clientWidth, H = cv.clientHeight;
+  cv.width = W*dpr; cv.height = H*dpr;
+  const ctx = cv.getContext("2d"); ctx.scale(dpr,dpr);
+  ctx.clearRect(0,0,W,H);
+  const M = {l:48,r:14,t:12,b:28};
+  const pw = W-M.l-M.r, ph = H-M.t-M.b;
+  const vis = pts.filter(p => p.t <= xMax + 1e-9);
+  let yMax = 0;
+  for(const p of vis) if(p[yKey]>yMax) yMax=p[yKey];
+  for(const hl of hlines) if(hl.y>yMax) yMax=hl.y;
+  yMax = niceStep(yMax*1.06 || 1);
+  const X = t => M.l + t/xMax*pw, Y = val => M.t + ph - val/yMax*ph;
+  ctx.font = "11px "+getComputedStyle(document.body).getPropertyValue("--mono");
+  ctx.strokeStyle = "#1c2733"; ctx.fillStyle = "#7d8ea0"; ctx.lineWidth = 1;
+  const xs = niceStep(xMax/5), ys = niceStep(yMax/4);
+  for(let t=0; t<=xMax+1e-9; t+=xs){ ctx.beginPath(); ctx.moveTo(X(t),M.t); ctx.lineTo(X(t),M.t+ph); ctx.stroke();
+    ctx.textAlign="center"; ctx.fillText(fmt(t,xs<1?1:0), X(t), H-8); }
+  for(let y=0; y<=yMax+1e-9; y+=ys){ ctx.beginPath(); ctx.moveTo(M.l,Y(y)); ctx.lineTo(M.l+pw,Y(y)); ctx.stroke();
+    ctx.textAlign="right"; ctx.fillText(fmt(y,ys<1?1:0), M.l-6, Y(y)+4); }
+  ctx.textAlign="left"; ctx.fillText(yLabel, M.l+4, M.t+12>16?M.t+14:16);
+  for(const hl of hlines){ ctx.strokeStyle=hl.color||"#ff6a5e"; ctx.setLineDash(hl.dash||[5,4]);
+    ctx.beginPath(); ctx.moveTo(M.l,Y(hl.y)); ctx.lineTo(M.l+pw,Y(hl.y)); ctx.stroke(); ctx.setLineDash([]);
+    if(hl.label){ ctx.fillStyle=hl.color||"#ff6a5e"; ctx.textAlign="right"; ctx.fillText(hl.label, M.l+pw-4, Y(hl.y)-4); ctx.fillStyle="#7d8ea0"; } }
+  ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.beginPath();
+  const stride = Math.max(1, Math.floor(vis.length/1200));
+  for(let i=0;i<vis.length;i+=stride){ const p=vis[i], x=X(p.t), y=Y(Math.min(p[yKey],yMax));
+    i?ctx.lineTo(x,y):ctx.moveTo(x,y); }
+  const lastP = vis[vis.length-1];
+  if(lastP){ ctx.lineTo(X(lastP.t), Y(Math.min(lastP[yKey],yMax))); }
+  ctx.stroke();
+  if(marker){ ctx.fillStyle="#fff"; ctx.beginPath(); ctx.arc(X(marker.x),Y(marker.y),4,0,7); ctx.fill();
+    ctx.strokeStyle=color; ctx.lineWidth=2; ctx.stroke(); }
+}
+
+/* ============================ cross-section viz ============================ */
+function drawViz(c){
+  const cv = $("viz"), dpr = window.devicePixelRatio||1;
+  const W = cv.clientWidth, H = 265; cv.width=W*dpr; cv.height=H*dpr;
+  const ctx = cv.getContext("2d"); ctx.scale(dpr,dpr); ctx.clearRect(0,0,W,H);
+  const pad=18, wlY = H*0.34;                       // waterline y
+  // tank
+  ctx.fillStyle="#0a1a2e"; ctx.fillRect(pad,wlY,W-2*pad,H-wlY-pad);
+  ctx.fillStyle="#0d1420"; ctx.fillRect(pad,pad,W-2*pad,wlY-pad);
+  ctx.strokeStyle="#223042"; ctx.strokeRect(pad,pad,W-2*pad,H-pad-pad);
+  ctx.strokeStyle="#4cc2ff"; ctx.beginPath(); ctx.moveTo(pad,wlY); ctx.lineTo(W-pad,wlY); ctx.stroke();
+  ctx.fillStyle="#7d8ea0"; ctx.font="11px ui-monospace,monospace"; ctx.textAlign="left";
+  ctx.fillText("waterline", pad+6, wlY-6);
+  // cylinder geometry (true aspect, fit)
+  const maxH=(H-pad-wlY)*0.86, maxW=(W-2*pad)/2.6;
+  const scale = Math.min(maxH/c.h, maxW/c.r*0.5);
+  const cw = 2*c.r*scale, ch = c.h*scale;
+  const sub = clamp(c.massNow/c.mReq, 0, 1);        // submerged fraction
+  const floats = c.netNow <= 0;
+  const drawOne = (cx)=>{
+    let topY;
+    if(floats) topY = wlY - (1-sub)*ch;
+    else       topY = wlY + (H-wlY-pad-ch)*0.35;
+    // body
+    const grad = ctx.createLinearGradient(cx-cw/2,0,cx+cw/2,0);
+    grad.addColorStop(0,"rgba(180,215,235,.28)"); grad.addColorStop(.5,"rgba(210,235,250,.45)");
+    grad.addColorStop(1,"rgba(180,215,235,.28)");
+    ctx.fillStyle = grad;
+    roundRect(ctx, cx-cw/2, topY, cw, ch, Math.min(10,cw/3)); ctx.fill();
+    ctx.strokeStyle="#9fc3d8"; ctx.lineWidth=1.2; ctx.stroke();
+    // internal ballast water
+    const iFrac = c.capMl>0 ? clamp(c.intakeKg/c.capKg,0,1) : 0;
+    if(iFrac>0){ const wh = iFrac*(ch-4);
+      ctx.fillStyle="rgba(59,140,240,.75)";
+      roundRect(ctx, cx-cw/2+2, topY+ch-2-wh, cw-4, wh, Math.min(8,cw/4)); ctx.fill(); }
+    // dry mass label
+    ctx.fillStyle="#dbe4ee"; ctx.textAlign="center"; ctx.font="11px ui-monospace,monospace";
+    ctx.fillText((c.netNow>=0?"−":"+")+fmt(Math.abs(c.netNow),2)+" kg", cx, topY-8);
+    if(!floats){ // sinking arrows
+      ctx.strokeStyle="#ff6a5e"; ctx.lineWidth=2;
+      for(const ax of [cx-cw/2-12, cx+cw/2+12]){
+        ctx.beginPath(); ctx.moveTo(ax,topY+ch*0.25); ctx.lineTo(ax,topY+ch*0.75);
+        ctx.lineTo(ax-4,topY+ch*0.75-7); ctx.moveTo(ax,topY+ch*0.75); ctx.lineTo(ax+4,topY+ch*0.75-7); ctx.stroke(); } }
+  };
+  if(c.N===2){ drawOne(W/2-cw-10); drawOne(W/2+cw+10); } else drawOne(W/2);
+  // draft note
+  ctx.fillStyle="#7d8ea0"; ctx.textAlign="center"; ctx.font="12px ui-monospace,monospace";
+  ctx.fillText(floats ? "floating — "+fmt(sub*100,0)+"% submerged" :
+               (Math.abs(c.netNow)<0.005?"neutral trim":"sinking"), W/2, H-8);
+}
+function roundRect(ctx,x,y,w,h,r){ ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+
+/* ============================ rendering ============================ */
+function metric(k,v,cls){ return `<div class="metric ${cls||""}"><div class="k">${k}</div><div class="v">${v}</div></div>`; }
+
+function render(){
+  const c = compute(state);
+
+  /* banner */
+  const bn = $("banner");
+  const intakePctOfCap = c.capMl>0 ? Math.round(state.intake/c.capMl*100) : 0;
+  if(Math.abs(c.netNow)<0.005){ bn.className="neutral"; $("bannerBig").textContent="⚖ NEUTRAL TRIM";
+    $("bannerWhy").textContent=`at ${fmtI(state.intake)} ml in the syringe — perfectly balanced`; }
+  else if(c.netNow>0){ bn.className="sinks"; $("bannerBig").textContent=`▼ SINKS · ${fmt(c.netNow,2)} kg net`;
+    $("bannerWhy").textContent=`total mass ${fmt(c.massNow,2)} kg vs ${fmt(c.mReq,2)} kg of buoyancy, at ${fmtI(state.intake)} ml (${intakePctOfCap}%) in the syringe`; }
+  else { bn.className="floats"; $("bannerBig").textContent=`▲ FLOATS · +${fmt(-c.netNow,2)} kg net`;
+    $("bannerWhy").textContent=`${fmt(-c.netNow/c.g*1000,0)} g of lift left; syringe holds ${fmtI(c.capMl)} ml (${fmt(c.capKg,2)} kg) — ${intakePctOfCap}% used`; }
+
+  /* intake card */
+  const ir = $("intake_rng"); ir.max = Math.round(c.capMl); ir.value = clamp(state.intake,0,c.capMl);
+  $("capMax").textContent = `${fmtI(c.capMl)} ml capacity (${c.N}×${fmtI(state.b)})`;
+  $("intakeVal").textContent = `${fmtI(state.intake)} ml`;
+  $("intakePct").textContent = ` = ${fmt(c.intakeKg,2)} kg of water · ${intakePctOfCap}% of syringe`;
+  $("capFill").style.width = (c.capMl>0?clamp(state.intake/c.capMl,0,1)*100:0)+"%";
+  const mk = $("capMark");
+  if(c.toSinkMl>0 && c.toSinkMl<=c.capMl){ mk.style.display="block";
+    mk.style.left = clamp(c.toSinkMl/c.capMl*100,0,100)+"%"; }
+  else mk.style.display="none";
+  $("intakeState").textContent = c.netNow>0
+    ? (c.expelMl <= state.intake + 1e-9
+        ? `right now: sinks by ${fmt(c.netNow,2)} kg — expel ${fmtI(c.netNow*1e6/s.rho)} ml to start floating`
+        : `right now: sinks by ${fmt(c.netNow,2)} kg — emptying the whole syringe still leaves it ${fmt(c.netNow-c.intakeKg,2)} kg heavy`)
+    : `right now: floats with ${fmt(-c.netNow,2)} kg of lift — pull the slider to ${fmtI(c.toSinkMl)} ml to sink`;
+
+  /* sink headline */
+  const sh = $("sinkHeadline"), sd = $("sinkDetail");
+  if(c.toSinkKg<=1e-9){
+    sh.className="headline no";
+    sh.textContent = `Already sinks with the syringe empty — ${fmt(c.expelKg,2)} kg too heavy`;
+    sd.innerHTML = `To hold depth you would need to shed <b class="num">${fmtI(c.expelMl)} ml</b> of displacement —
+      <b class="num">${fmt(c.holdPct,1)}%</b> of the syringe capacity. Syringe can never make this float: reduce net weight,
+      add payload floatation, or go to a bigger diameter.`;
+  } else if(c.canSink){
+    sh.className="headline ok";
+    sh.innerHTML = `Sinks after taking in <span class="num">${fmtI(c.toSinkMl)} ml</span> (${fmt(c.toSinkKg,2)} kg) —
+      ${fmt(c.toSinkMl/c.capMl*100,0)}% of the syringe`;
+    sd.innerHTML = `Threshold mark is drawn on the intake bar. Below it the ROV floats, above it it sinks;
+      the remaining <span class="num">${fmtI(c.capMl-c.toSinkMl)} ml</span> is thrust margin for moving up/down.`;
+  } else {
+    sh.className="headline no";
+    sh.innerHTML = `Needs <span class="num">${fmtI(c.toSinkMl)} ml</span> (${fmt(c.toSinkKg,2)} kg) to sink —
+      syringe only holds <span class="num">${fmtI(c.capMl)} ml</span>`;
+    sd.innerHTML = `Short by <b class="num">${fmtI(c.toSinkMl-c.capMl)} ml</b>. It can <b>never</b> sink with this ballast —
+      even 100% intake leaves it <span class="num">${fmt(c.netDry+c.capKg-c.mReq,2)} kg</span> light.`;
+  }
+
+  /* metrics */
+  $("metrics").innerHTML =
+    metric("Volume (total)", `${fmt(c.V,4)} m³ <small>= ${fmt(c.V*1000,2)} L</small>`) +
+    metric("Displaced water · m_req", `${fmt(c.mReq,3)} <small>kg</small>`) +
+    metric("Dry net weight", `${fmt(c.netDry,2)} <small>kg</small>`, "") +
+    metric("Extra mass to be neutral", `${c.extra>=0?"+":""}${fmt(c.extra,2)} <small>kg</small>`, c.extra>=0?"good":"bad") +
+    metric("Hold-depth margin (sheet %)", `${fmt(c.holdPct,1)}<small>%</small>`, c.holdPct>=0?"good":"bad") +
+    metric("Water mass for moving", `${fmt(c.mMove,2)} <small>kg</small>`, c.mMove>0?"":"bad") +
+    metric("Drag term ρSCx/2 · k", `${fmt(c.k,2)} <small>N·s²/m²</small>`) +
+    metric("m_w·g driving force", `${fmt(c.F,2)} <small>N</small>`) +
+    metric("Terminal velocity v_t", c.mMove>0?`${fmt(c.vt,2)} <small>m/s</small>`:"—") +
+    metric("Cross-section S", `${fmt(c.S*1e4,1)} <small>cm²</small>`);
+
+  /* charts */
+  const chipT=$("tTargetChip"), chipV=$("vtChip"), msg=$("chartMsg");
+  if(c.mMove>0){
+    msg.style.display="none";
+    const sim = simulate(c);
+    let xMax = sim.tTarget ? sim.tTarget*1.4 : sim.tEnd;
+    xMax = clamp(xMax, 3, 30); xMax = Math.ceil(xMax/niceStep(xMax/5))*niceStep(xMax/5);
+    chipT.textContent = sim.tTarget ? `reaches ${fmt(state.depth,1)} m in ${fmt(sim.tTarget,2)} s` : `does not reach ${fmt(state.depth,1)} m`;
+    chipV.textContent = `v_t = ${fmt(c.vt,2)} m/s`;
+    drawChart($("chartS"), sim.pts, xMax, "s", "s (m)", "#4cc2ff",
+      [{y:state.depth, color:"#3fb950", label:`target ${fmt(state.depth,1)} m`}],
+      sim.tTarget ? {x:sim.tTarget, y:state.depth} : null);
+    drawChart($("chartV"), sim.pts, xMax, "v", "v (m/s)", "#e0a458",
+      [{y:c.vt, color:"#7d8ea0", label:"v_t"}], null);
+  } else {
+    chipT.textContent=""; chipV.textContent="";
+    msg.style.display="block";
+    msg.textContent = `Cannot descend: even a full syringe leaves it ${fmt(-c.mMove,2)} kg light. `+
+      `Increase net weight / payload, or shrink the diameter.`;
+    const cv=$("chartS"), cv2=$("chartV");
+    for(const x of [cv,cv2]){ const d=window.devicePixelRatio||1; x.width=x.clientWidth*d; x.height=210*d;
+      const ctx=x.getContext("2d"); ctx.scale(d,d); ctx.clearRect(0,0,x.clientWidth,210); }
+  }
+
+  /* comparison table: 80/100/110 with everything else current, syringe empty */
+  const rows = [];
+  for(const d of [80,100,110]){
+    const s2 = Object.assign({}, state, {d, intake:0});
+    const c2 = compute(s2);
+    let tT="—", vtS="—", verdict, cls;
+    if(c2.mMove>0){ const sim2=simulate(c2);
+      vtS = fmt(c2.vt,2); tT = sim2.tTarget?fmt(sim2.tTarget,2)+" s":">30 s"; }
+    if(c2.toSinkKg<=1e-9){ verdict=`already sinks ${fmt(c2.expelKg,2)} kg`; cls="bad"; }
+    else if(c2.canSink){ verdict=`sinks @ ${fmtI(c2.toSinkMl)} ml`; cls="ok"; }
+    else { verdict=`never (needs ${fmtI(c2.toSinkMl)} ml)`; cls="bad"; }
+    rows.push(`<tr class="${d===state.d?"cur":""}"><td>Ø${d}</td><td>${fmt(c2.V*1000,2)}</td>
+      <td>${fmt(c2.mReq,2)}</td><td class="${cls}">${verdict}</td><td>${vtS}</td><td>${tT}</td></tr>`);
+  }
+  $("cmpTable").innerHTML =
+    `<tr><th>Ø mm</th><th>vol (L)</th><th>displaces (kg)</th><th>sink threshold</th><th>v_t (m/s)</th><th>t → target</th></tr>`+rows.join("");
+
+  /* data table */
+  const trows=[];
+  if(c.mMove>0){
+    const sim = simulate(c);
+    for(let i=0;i<sim.pts.length;i+=10){
+      const p=sim.pts[i];
+      trows.push(`<tr><td>${fmt(p.t,1)}</td><td>${fmt(p.s,4)}</td><td>${fmt(p.v,4)}</td></tr>`);
+      if(p.t>=30.01) break;
+    }
+  }
+  $("simTable").innerHTML =
+    `<tr><th>t (s)</th><th>s (m)</th><th>v (m/s)</th></tr>`+trows.join("");
+
+  drawViz(c);
+  shareURL();
+}
+
+/* ============================ URL sharing ============================ */
+function shareURL(){
+  const q = new URLSearchParams();
+  for(const k of ["h","d","n","w","p","b","rho","cd","g","depth","intake"]) q.set(k, state[k]);
+  history.replaceState(null,"", location.pathname+"?"+q);
+}
+function loadURL(){
+  const q = new URLSearchParams(location.search);
+  for(const k of Object.keys(DEFAULTS)) if(q.has(k)){ const v=parseFloat(q.get(k)); if(isFinite(v)) state[k]=v; }
+  state.n = state.n===2?2:1; state.intake = clamp(state.intake,0,1e6);
+}
+
+/* ============================ wiring ============================ */
+const CTL = [
+  ["h","h_rng","h_num"],["w","w_rng","w_num"],["p","p_rng","p_num"],
+  ["b","b_rng","b_num"],["rho","rho_rng","rho_num"],["cd","cd_rng","cd_num"],
+  ["g","g_rng","g_num"],["depth","t_rng","t_num"],
+];
+for(const [key,rid,nid] of CTL){
+  $(rid).addEventListener("input", e=>{ state[key]=parseFloat(e.target.value); $(nid).value=state[key]; render(); });
+  $(nid).addEventListener("input", e=>{ const v=parseFloat(e.target.value); if(isFinite(v)){ state[key]=v; $(rid).value=clamp(v,+$(rid).min,+$(rid).max); render(); } });
+}
+/* diameter segmented + custom */
+function syncDia(){
+  for(const b of $("dSeg").querySelectorAll("button")) b.classList.toggle("active", +b.dataset.d===state.d);
+  $("d_num").value = state.d;
+}
+$("dSeg").addEventListener("click", e=>{
+  const b=e.target.closest("button"); if(!b) return;
+  state.d = +b.dataset.d; syncDia(); render();
+});
+$("d_num").addEventListener("input", e=>{
+  const v=parseFloat(e.target.value); if(isFinite(v)&&v>0){ state.d=v; syncDia(); render(); }
+});
+/* cylinder count */
+$("cylSeg").addEventListener("click", e=>{
+  const b=e.target.closest("button"); if(!b) return;
+  state.n = +b.dataset.n;
+  for(const x of $("cylSeg").querySelectorAll("button")) x.classList.toggle("active", +x.dataset.n===state.n);
+  render();
+});
+/* intake */
+$("intake_rng").addEventListener("input", e=>{ state.intake=parseFloat(e.target.value)||0; render(); });
+/* reset */
+$("resetBtn").addEventListener("click", ()=>{
+  Object.assign(state, DEFAULTS);
+  syncDia();
+  for(const x of $("cylSeg").querySelectorAll("button")) x.classList.toggle("active", +x.dataset.n===state.n);
+  for(const [key,rid,nid] of CTL){ $(rid).value=state[key]; $(nid).value=state[key]; }
+  $("intake_rng").value=0;
+  render();
+});
+
+/* ============================ boot ============================ */
+loadURL();
+syncDia();
+for(const x of $("cylSeg").querySelectorAll("button")) x.classList.toggle("active", +x.dataset.n===state.n);
+for(const [key,rid,nid] of CTL){ $(rid).value=state[key]; $(nid).value=state[key]; }
+$("intake_rng").value=state.intake;
+render();
+</script>
+</body>
+</html>
